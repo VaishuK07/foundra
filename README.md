@@ -1,4 +1,7 @@
-# foundra
-# Foundra
+# Foundra 🚀
 
-Foundra is a Smart Startup Collaboration & Co-Founder Discovery Platform that helps entrepreneurs and students find the right co-founders, build startup teams, collaborate on ideas, and track startup progress from idea to launch.
+### Smart Startup Collaboration & Co-Founder Discovery Platform
+
+Foundra helps entrepreneurs and students discover the right co-founders,
+build startup teams, collaborate on innovative ideas, and manage their
+startup journey from idea to launch.
