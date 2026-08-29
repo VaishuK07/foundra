@@ -1,6 +1,7 @@
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+
 const signup = async (req, res) => {
     try {
         const { name, email, password } = req.body;
@@ -39,11 +40,8 @@ const signup = async (req, res) => {
         });
 
     } catch (error) {
-        console.log(error);
-
         return res.status(500).json({
-            message: "Server error",
-            error: error.message
+            message: "Server error"
         });
     }
 };
@@ -76,20 +74,28 @@ const login = async (req, res) => {
                 message: "Invalid email or password"
             });
         }
-const token = jwt.sign(
-    { id: user._id, role: user.role },
-    process.env.JWT_SECRET,
-    { expiresIn: "7d" }
-);
+
+        const token = jwt.sign(
+            {
+                id: user._id,
+                role: user.role
+            },
+            process.env.JWT_SECRET,
+            {
+                expiresIn: "7d"
+            }
+        );
+
         return res.status(200).json({
-    message: "Login successful",
-    token,
-    user: {
-        id: user._id,
-        name: user.name,
-        email: user.email
-    }
-});
+            message: "Login successful",
+            token,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email
+            }
+        });
+
     } catch (error) {
         return res.status(500).json({
             message: "Server error"
@@ -118,4 +124,45 @@ const getMe = async (req, res) => {
     }
 };
 
-export default { signup, login, getMe };
+const updateProfile = async (req, res) => {
+    try {
+        const { name, bio, skills, profileImage } = req.body;
+
+        const user = await User.findById(req.user.id);
+
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found"
+            });
+        }
+
+        if (name !== undefined) user.name = name;
+        if (bio !== undefined) user.bio = bio;
+        if (skills !== undefined) user.skills = skills;
+        if (profileImage !== undefined) user.profileImage = profileImage;
+
+        user.updatedAt = new Date();
+
+        await user.save();
+
+        return res.status(200).json({
+            message: "Profile updated successfully",
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                skills: user.skills,
+                bio: user.bio,
+                profileImage: user.profileImage
+            }
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            message: "Server error"
+        });
+    }
+};
+
+export default { signup, login, getMe, updateProfile };
