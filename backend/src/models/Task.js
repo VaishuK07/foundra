@@ -5,12 +5,16 @@ const taskSchema = new mongoose.Schema(
         title: {
             type: String,
             required: true,
-            trim: true
+            trim: true,
+            minlength: 1,
+            maxlength: 150
         },
 
         description: {
             type: String,
-            trim: true
+            trim: true,
+            maxlength: 1000,
+            default: ""
         },
 
         status: {
@@ -33,7 +37,8 @@ const taskSchema = new mongoose.Schema(
         startup: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Startup",
-            required: true
+            required: true,
+            index: true
         },
 
         dueDate: {

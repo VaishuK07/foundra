@@ -6,7 +6,43 @@ const signup = async (req, res) => {
     try {
         const { name, email, password } = req.body;
 
-        const existingUser = await User.findOne({ email });
+        // Required field validation
+        if (!name?.trim() || !email?.trim() || !password) {
+            return res.status(400).json({
+                message: "Name, email and password are required"
+            });
+        }
+
+        const cleanName = name.trim();
+        const cleanEmail = email.trim().toLowerCase();
+
+        // Name validation
+        if (cleanName.length < 2) {
+            return res.status(400).json({
+                message: "Name must contain at least 2 characters"
+            });
+        }
+
+        // Email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!emailRegex.test(cleanEmail)) {
+            return res.status(400).json({
+                message: "Please enter a valid email address"
+            });
+        }
+
+        // Password validation
+        if (password.length < 6) {
+            return res.status(400).json({
+                message: "Password must contain at least 6 characters"
+            });
+        }
+
+        // Check duplicate email
+        const existingUser = await User.findOne({
+            email: cleanEmail
+        });
 
         if (existingUser) {
             return res.status(400).json({
@@ -14,17 +50,12 @@ const signup = async (req, res) => {
             });
         }
 
-        if (!name || !email || !password) {
-            return res.status(400).json({
-                message: "Name, email and password are required"
-            });
-        }
-
+        // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
         const user = new User({
-            name,
-            email,
+            name: cleanName,
+            email: cleanEmail,
             password: hashedPassword
         });
 
@@ -40,23 +71,40 @@ const signup = async (req, res) => {
         });
 
     } catch (error) {
+        console.error("Signup error:", error);
+
         return res.status(500).json({
             message: "Server error"
         });
     }
 };
 
+
 const login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        if (!email || !password) {
+        // Required validation
+        if (!email?.trim() || !password) {
             return res.status(400).json({
                 message: "Email and password are required"
             });
         }
 
-        const user = await User.findOne({ email });
+        const cleanEmail = email.trim().toLowerCase();
+
+        // Email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!emailRegex.test(cleanEmail)) {
+            return res.status(400).json({
+                message: "Please enter a valid email address"
+            });
+        }
+
+        const user = await User.findOne({
+            email: cleanEmail
+        });
 
         if (!user) {
             return res.status(401).json({
@@ -72,6 +120,15 @@ const login = async (req, res) => {
         if (!isPasswordCorrect) {
             return res.status(401).json({
                 message: "Invalid email or password"
+            });
+        }
+
+        // JWT secret check
+        if (!process.env.JWT_SECRET) {
+            console.error("JWT_SECRET is missing");
+
+            return res.status(500).json({
+                message: "Server configuration error"
             });
         }
 
@@ -92,20 +149,25 @@ const login = async (req, res) => {
             user: {
                 id: user._id,
                 name: user.name,
-                email: user.email
+                email: user.email,
+                role: user.role
             }
         });
 
     } catch (error) {
+        console.error("Login error:", error);
+
         return res.status(500).json({
             message: "Server error"
         });
     }
 };
 
+
 const getMe = async (req, res) => {
     try {
-        const user = await User.findById(req.user.id).select("-password");
+        const user = await User.findById(req.user.id)
+            .select("-password");
 
         if (!user) {
             return res.status(404).json({
@@ -118,15 +180,23 @@ const getMe = async (req, res) => {
         });
 
     } catch (error) {
+        console.error("Get profile error:", error);
+
         return res.status(500).json({
             message: "Server error"
         });
     }
 };
 
+
 const updateProfile = async (req, res) => {
     try {
-        const { name, bio, skills, profileImage } = req.body;
+        const {
+            name,
+            bio,
+            skills,
+            profileImage
+        } = req.body;
 
         const user = await User.findById(req.user.id);
 
@@ -136,10 +206,55 @@ const updateProfile = async (req, res) => {
             });
         }
 
-        if (name !== undefined) user.name = name;
-        if (bio !== undefined) user.bio = bio;
-        if (skills !== undefined) user.skills = skills;
-        if (profileImage !== undefined) user.profileImage = profileImage;
+        // Name validation
+        if (name !== undefined) {
+            if (!name.trim()) {
+                return res.status(400).json({
+                    message: "Name cannot be empty"
+                });
+            }
+
+            if (name.trim().length < 2) {
+                return res.status(400).json({
+                    message: "Name must contain at least 2 characters"
+                });
+            }
+
+            user.name = name.trim();
+        }
+
+        // Bio validation
+        if (bio !== undefined) {
+            if (typeof bio !== "string") {
+                return res.status(400).json({
+                    message: "Bio must be a string"
+                });
+            }
+
+            user.bio = bio.trim();
+        }
+
+        // Skills validation
+        if (skills !== undefined) {
+            if (!Array.isArray(skills)) {
+                return res.status(400).json({
+                    message: "Skills must be an array"
+                });
+            }
+
+            user.skills = skills;
+        }
+
+        // Profile image validation
+        if (profileImage !== undefined) {
+            if (typeof profileImage !== "string") {
+                return res.status(400).json({
+                    message: "Profile image must be a string"
+                });
+            }
+
+            user.profileImage = profileImage.trim();
+        }
 
         user.updatedAt = new Date();
 
@@ -159,10 +274,18 @@ const updateProfile = async (req, res) => {
         });
 
     } catch (error) {
+        console.error("Update profile error:", error);
+
         return res.status(500).json({
             message: "Server error"
         });
     }
 };
 
-export default { signup, login, getMe, updateProfile };
+
+export default {
+    signup,
+    login,
+    getMe,
+    updateProfile
+};

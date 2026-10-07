@@ -1,5 +1,24 @@
+import mongoose from "mongoose";
 import Task from "../models/Task.js";
 import Startup from "../models/Startup.js";
+import User from "../models/User.js";
+
+const allowedStatuses = [
+    "Pending",
+    "In Progress",
+    "Completed"
+];
+
+const allowedPriorities = [
+    "Low",
+    "Medium",
+    "High"
+];
+
+
+// ===============================
+// CREATE TASK
+// ===============================
 
 const createTask = async (req, res) => {
     try {
@@ -11,12 +30,14 @@ const createTask = async (req, res) => {
             dueDate
         } = req.body;
 
-        if (!title) {
+        // Validate title
+        if (!title?.trim()) {
             return res.status(400).json({
                 message: "Task title is required"
             });
         }
 
+        // Find user's startup
         const startup = await Startup.findOne({
             founder: req.user.id
         });
@@ -27,11 +48,62 @@ const createTask = async (req, res) => {
             });
         }
 
+        // Default assignee = current user
+        const assigneeId = assignedTo || req.user.id;
+
+        // Validate assignedTo ObjectId
+        if (!mongoose.Types.ObjectId.isValid(assigneeId)) {
+            return res.status(400).json({
+                message: "Invalid assigned user ID"
+            });
+        }
+
+        // Check assigned user exists
+        const assignedUser = await User.findById(assigneeId);
+
+        if (!assignedUser) {
+            return res.status(404).json({
+                message: "Assigned user not found"
+            });
+        }
+
+        // Check user belongs to startup team
+        const isTeamMember = startup.teamMembers.some(
+            memberId => memberId.toString() === assigneeId.toString()
+        );
+
+        if (!isTeamMember) {
+            return res.status(403).json({
+                message: "Task can only be assigned to a startup team member"
+            });
+        }
+
+        // Validate priority
+        if (
+            priority !== undefined &&
+            !allowedPriorities.includes(priority)
+        ) {
+            return res.status(400).json({
+                message: "Invalid task priority"
+            });
+        }
+
+        // Validate due date
+        if (
+            dueDate !== undefined &&
+            dueDate !== null &&
+            Number.isNaN(Date.parse(dueDate))
+        ) {
+            return res.status(400).json({
+                message: "Invalid due date"
+            });
+        }
+
         const task = new Task({
-            title,
+            title: title.trim(),
             description,
             priority,
-            assignedTo: assignedTo || req.user.id,
+            assignedTo: assigneeId,
             startup: startup._id,
             dueDate
         });
@@ -44,12 +116,18 @@ const createTask = async (req, res) => {
         });
 
     } catch (error) {
+        console.error("Create task error:", error);
+
         return res.status(500).json({
             message: "Server error"
         });
     }
 };
 
+
+// ===============================
+// GET MY TASKS
+// ===============================
 
 const getMyTasks = async (req, res) => {
     try {
@@ -74,6 +152,8 @@ const getMyTasks = async (req, res) => {
         });
 
     } catch (error) {
+        console.error("Get tasks error:", error);
+
         return res.status(500).json({
             message: "Server error"
         });
@@ -81,9 +161,20 @@ const getMyTasks = async (req, res) => {
 };
 
 
+// ===============================
+// UPDATE TASK
+// ===============================
+
 const updateTask = async (req, res) => {
     try {
         const { taskId } = req.params;
+
+        // Validate task ID
+        if (!mongoose.Types.ObjectId.isValid(taskId)) {
+            return res.status(400).json({
+                message: "Invalid task ID"
+            });
+        }
 
         const task = await Task.findById(taskId);
 
@@ -93,6 +184,7 @@ const updateTask = async (req, res) => {
             });
         }
 
+        // Check startup ownership
         const startup = await Startup.findOne({
             _id: task.startup,
             founder: req.user.id
@@ -113,12 +205,89 @@ const updateTask = async (req, res) => {
             dueDate
         } = req.body;
 
-        if (title !== undefined) task.title = title;
-        if (description !== undefined) task.description = description;
-        if (status !== undefined) task.status = status;
-        if (priority !== undefined) task.priority = priority;
-        if (assignedTo !== undefined) task.assignedTo = assignedTo;
-        if (dueDate !== undefined) task.dueDate = dueDate;
+        // Validate title
+        if (title !== undefined) {
+            if (!title.trim()) {
+                return res.status(400).json({
+                    message: "Task title cannot be empty"
+                });
+            }
+
+            task.title = title.trim();
+        }
+
+        // Update description
+        if (description !== undefined) {
+            task.description = description;
+        }
+
+        // Validate status
+        if (status !== undefined) {
+            if (!allowedStatuses.includes(status)) {
+                return res.status(400).json({
+                    message: "Invalid task status"
+                });
+            }
+
+            task.status = status;
+        }
+
+        // Validate priority
+        if (priority !== undefined) {
+            if (!allowedPriorities.includes(priority)) {
+                return res.status(400).json({
+                    message: "Invalid task priority"
+                });
+            }
+
+            task.priority = priority;
+        }
+
+        // Validate assigned user
+        if (assignedTo !== undefined) {
+
+            if (!mongoose.Types.ObjectId.isValid(assignedTo)) {
+                return res.status(400).json({
+                    message: "Invalid assigned user ID"
+                });
+            }
+
+            const assignedUser = await User.findById(assignedTo);
+
+            if (!assignedUser) {
+                return res.status(404).json({
+                    message: "Assigned user not found"
+                });
+            }
+
+            const isTeamMember = startup.teamMembers.some(
+                memberId =>
+                    memberId.toString() === assignedTo.toString()
+            );
+
+            if (!isTeamMember) {
+                return res.status(403).json({
+                    message: "Task can only be assigned to a startup team member"
+                });
+            }
+
+            task.assignedTo = assignedTo;
+        }
+
+        // Validate due date
+        if (dueDate !== undefined) {
+
+            if (
+                dueDate !== null &&
+                Number.isNaN(Date.parse(dueDate))
+            ) {
+                return res.status(400).json({
+                    message: "Invalid due date"
+                });
+            }
+
+            task.dueDate = dueDate;
+        }
 
         await task.save();
 
@@ -128,6 +297,8 @@ const updateTask = async (req, res) => {
         });
 
     } catch (error) {
+        console.error("Update task error:", error);
+
         return res.status(500).json({
             message: "Server error"
         });
@@ -135,9 +306,20 @@ const updateTask = async (req, res) => {
 };
 
 
+// ===============================
+// DELETE TASK
+// ===============================
+
 const deleteTask = async (req, res) => {
     try {
         const { taskId } = req.params;
+
+        // Validate task ID
+        if (!mongoose.Types.ObjectId.isValid(taskId)) {
+            return res.status(400).json({
+                message: "Invalid task ID"
+            });
+        }
 
         const task = await Task.findById(taskId);
 
@@ -147,6 +329,7 @@ const deleteTask = async (req, res) => {
             });
         }
 
+        // Check startup ownership
         const startup = await Startup.findOne({
             _id: task.startup,
             founder: req.user.id
@@ -165,6 +348,8 @@ const deleteTask = async (req, res) => {
         });
 
     } catch (error) {
+        console.error("Delete task error:", error);
+
         return res.status(500).json({
             message: "Server error"
         });

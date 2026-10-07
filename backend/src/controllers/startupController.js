@@ -1,5 +1,13 @@
 import Startup from "../models/Startup.js";
 
+const allowedStages = [
+    "Idea",
+    "Research",
+    "Prototype",
+    "MVP",
+    "Launch"
+];
+
 const createStartup = async (req, res) => {
     try {
         const {
@@ -11,18 +19,40 @@ const createStartup = async (req, res) => {
             skillsNeeded
         } = req.body;
 
-        if (!name || !description || !domain) {
+        // Required fields validation
+        if (
+            !name?.trim() ||
+            !description?.trim() ||
+            !domain?.trim()
+        ) {
             return res.status(400).json({
                 message: "Name, description and domain are required"
             });
         }
 
+        // Stage validation
+        if (stage !== undefined && !allowedStages.includes(stage)) {
+            return res.status(400).json({
+                message: "Invalid startup stage"
+            });
+        }
+
+        // Skills validation
+        if (
+            skillsNeeded !== undefined &&
+            !Array.isArray(skillsNeeded)
+        ) {
+            return res.status(400).json({
+                message: "skillsNeeded must be an array"
+            });
+        }
+
         const startup = new Startup({
-            name,
-            description,
-            domain,
+            name: name.trim(),
+            description: description.trim(),
+            domain: domain.trim(),
             stage,
-            location,
+            location: location?.trim(),
             skillsNeeded,
             founder: req.user.id,
             teamMembers: [req.user.id]
@@ -89,31 +119,78 @@ const updateMyStartup = async (req, res) => {
             });
         }
 
+        // Validate name
         if (name !== undefined) {
-            startup.name = name;
+            if (!name.trim()) {
+                return res.status(400).json({
+                    message: "Startup name cannot be empty"
+                });
+            }
+
+            startup.name = name.trim();
         }
 
+        // Validate description
         if (description !== undefined) {
-            startup.description = description;
+            if (!description.trim()) {
+                return res.status(400).json({
+                    message: "Description cannot be empty"
+                });
+            }
+
+            startup.description = description.trim();
         }
 
+        // Validate domain
         if (domain !== undefined) {
-            startup.domain = domain;
+            if (!domain.trim()) {
+                return res.status(400).json({
+                    message: "Domain cannot be empty"
+                });
+            }
+
+            startup.domain = domain.trim();
         }
 
+        // Validate stage
         if (stage !== undefined) {
+            if (!allowedStages.includes(stage)) {
+                return res.status(400).json({
+                    message: "Invalid startup stage"
+                });
+            }
+
             startup.stage = stage;
         }
 
+        // Update location
         if (location !== undefined) {
-            startup.location = location;
+            startup.location = location.trim();
         }
 
+        // Validate skills
         if (skillsNeeded !== undefined) {
+            if (!Array.isArray(skillsNeeded)) {
+                return res.status(400).json({
+                    message: "skillsNeeded must be an array"
+                });
+            }
+
             startup.skillsNeeded = skillsNeeded;
         }
 
+        // Validate progress
         if (progress !== undefined) {
+            if (
+                typeof progress !== "number" ||
+                progress < 0 ||
+                progress > 100
+            ) {
+                return res.status(400).json({
+                    message: "Progress must be a number between 0 and 100"
+                });
+            }
+
             startup.progress = progress;
         }
 
